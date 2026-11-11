@@ -22,13 +22,20 @@ class AuthMiddleware {
         }
 
         $pdo = Database::getConnection();
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE api_token = ? AND is_banned = 0 LIMIT 1");
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE api_token = ? LIMIT 1");
         $stmt->execute([$token]);
         $user = $stmt->fetch();
 
         if (!$user) {
             if ($required) {
-                Response::unauthorized('Invalid or expired authentication token');
+                Response::unauthorized('Account deleted or authentication token is invalid');
+            }
+            return null;
+        }
+
+        if (!empty($user['is_banned'])) {
+            if ($required) {
+                Response::forbidden('Your account has been banned by an administrator.');
             }
             return null;
         }

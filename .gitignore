@@ -3,6 +3,7 @@
 api/config/db_config.php
 api/config/installed.lock
 api/config/schema_v2.lock
+api/config/firebase_service_account.json
 .env
 
 # Logs and system files

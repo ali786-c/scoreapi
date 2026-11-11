@@ -7,8 +7,28 @@ if (empty($_SESSION['admin_logged_in'])) {
 
 require_once __DIR__ . '/../api/config/db.php';
 require_once __DIR__ . '/../api/helpers/schema_migrator.php';
+require_once __DIR__ . '/../api/helpers/firebase_admin.php';
 $pdo = Database::getConnection();
 SchemaMigrator::ensureGoogleAuthColumns($pdo);
+
+// Handle Optional Firebase Service Account Save
+if (isset($_POST['firebase_sa_json'])) {
+    $rawJson = trim($_POST['firebase_sa_json']);
+    $saPath = __DIR__ . '/../api/config/firebase_service_account.json';
+    if ($rawJson === '') {
+        if (file_exists($saPath)) @unlink($saPath);
+        header('Location: users.php?msg=fb_removed');
+        exit;
+    }
+    $decoded = json_decode($rawJson, true);
+    if (!is_array($decoded) || empty($decoded['project_id']) || empty($decoded['private_key']) || empty($decoded['client_email'])) {
+        header('Location: users.php?msg=fb_invalid');
+        exit;
+    }
+    @file_put_contents($saPath, json_encode($decoded, JSON_PRETTY_PRINT));
+    header('Location: users.php?msg=fb_saved');
+    exit;
+}
 
 // Handle Toggle Player Verification
 if (isset($_POST['toggle_verify_player_id'])) {
@@ -24,13 +44,43 @@ if (isset($_POST['toggle_verify_player_id'])) {
 
 // Handle Ban/Unban User
 if (isset($_POST['toggle_ban_user_id'])) {
-    $uid = $_POST['toggle_ban_user_id'];
+    $uid = (int)$_POST['toggle_ban_user_id'];
     $currentBan = (int)$_POST['current_ban'];
     $newBan = $currentBan ? 0 : 1;
 
-    $stmt = $pdo->prepare("UPDATE users SET is_banned = ? WHERE id = ?");
+    $stmt = $pdo->prepare("UPDATE users SET is_banned = ? WHERE id = ? AND role != 'admin'");
     $stmt->execute([$newBan, $uid]);
     header('Location: users.php?msg=user_updated');
+    exit;
+}
+
+// Handle Complete User Deletion (MySQL + Optional Firebase Auth)
+if (isset($_POST['delete_user_id'])) {
+    $targetId = (int)$_POST['delete_user_id'];
+    $stmtFetch = $pdo->prepare("SELECT * FROM users WHERE id = ? AND role != 'admin' LIMIT 1");
+    $stmtFetch->execute([$targetId]);
+    $targetUser = $stmtFetch->fetch();
+
+    if ($targetUser) {
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("DELETE FROM players WHERE linked_user_id = ? OR id = ? OR user_code = ?")
+                ->execute([$targetUser['id'], $targetUser['uid'], $targetUser['user_code']]);
+            $pdo->prepare("DELETE FROM users WHERE id = ? AND role != 'admin'")
+                ->execute([$targetUser['id']]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            header('Location: users.php?msg=delete_error');
+            exit;
+        }
+
+        $fbRes = FirebaseAdminHelper::deleteUserByEmail($targetUser['email'] ?? '');
+        $fbStatus = $fbRes['status'] ?? 'not_configured';
+        header('Location: users.php?msg=user_deleted&fb=' . urlencode($fbStatus));
+        exit;
+    }
+    header('Location: users.php?msg=delete_denied');
     exit;
 }
 
@@ -90,6 +140,25 @@ if (!empty($search)) {
         </form>
       </div>
     </div>
+
+    <?php if (!empty($_GET['msg'])): ?>
+      <?php
+        $msgCode = $_GET['msg'];
+        $fbNote = $_GET['fb'] ?? '';
+        $alertText = match ($msgCode) {
+            'updated' => 'Player verification status updated.',
+            'user_updated' => 'User ban/active status updated. Banned users are automatically signed out on their next online check.',
+            'user_deleted' => 'User & player profile deleted from MySQL.' . ($fbNote === 'deleted_from_firebase' ? ' Also deleted from Firebase Auth!' : ($fbNote === 'not_in_firebase' ? ' (Not present in Firebase Auth.)' : '')),
+            'fb_saved' => 'Firebase Service Account saved! Deletions will now sync to Firebase Auth.',
+            'fb_removed' => 'Firebase Service Account removed.',
+            'fb_invalid' => 'Invalid Service Account JSON. Ensure project_id, client_email, and private_key are present.',
+            default => 'Action completed.',
+        };
+      ?>
+      <div style="background:#DCFCE7; color:#166534; padding:12px 16px; border-radius:10px; margin-bottom:18px; font-size:13px; font-weight:700;">
+        <?= htmlspecialchars($alertText) ?>
+      </div>
+    <?php endif; ?>
 
     <div class="panel">
       <div class="panel-header">
@@ -198,13 +267,21 @@ if (!empty($search)) {
                 </td>
                 <td>
                   <?php if ($u['role'] !== 'admin'): ?>
-                    <form method="POST" style="display: inline;">
-                      <input type="hidden" name="toggle_ban_user_id" value="<?= (int)$u['id'] ?>">
-                      <input type="hidden" name="current_ban" value="<?= (int)$u['is_banned'] ?>">
-                      <button type="submit" class="btn <?= $u['is_banned'] ? 'btn-primary' : 'btn-danger' ?> btn-sm">
-                        <?= $u['is_banned'] ? 'Unban User' : 'Ban User' ?>
-                      </button>
-                    </form>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      <form method="POST" style="display: inline;">
+                        <input type="hidden" name="toggle_ban_user_id" value="<?= (int)$u['id'] ?>">
+                        <input type="hidden" name="current_ban" value="<?= (int)$u['is_banned'] ?>">
+                        <button type="submit" class="btn <?= $u['is_banned'] ? 'btn-primary' : 'btn-danger' ?> btn-sm">
+                          <?= $u['is_banned'] ? 'Unban' : 'Ban' ?>
+                        </button>
+                      </form>
+                      <form method="POST" style="display: inline;" onsubmit="return confirm('Permanently delete user <?= htmlspecialchars(addslashes($u['email'])) ?> and their player profile? This forces sign-out on their app and removes Firebase Auth record if configured.');">
+                        <input type="hidden" name="delete_user_id" value="<?= (int)$u['id'] ?>">
+                        <button type="submit" class="btn btn-danger btn-sm" style="background:#7F1D1D;">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
                   <?php else: ?>
                     <span style="font-size:11px; color:var(--text-muted);">Master Admin</span>
                   <?php endif; ?>
@@ -214,6 +291,29 @@ if (!empty($search)) {
           <?php endif; ?>
         </tbody>
       </table>
+    </div>
+
+    <!-- Optional Firebase Auth Admin Sync Panel -->
+    <div class="panel" style="margin-top: 24px;">
+      <div class="panel-header">
+        <h2 class="panel-title">🔥 Firebase Auth Sync (Optional Auto-Delete)</h2>
+        <?php if (FirebaseAdminHelper::isConfigured()): ?>
+          <span class="badge badge-verified">CONNECTED</span>
+        <?php else: ?>
+          <span class="badge badge-unverified">NOT CONFIGURED</span>
+        <?php endif; ?>
+      </div>
+      <div style="padding: 16px; font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+        <p style="margin-bottom: 10px;">
+          Note: App Google Sign-In authenticates directly with this <strong>cPanel MySQL backend</strong> (deleting/banning above immediately blocks &amp; signs out the user in the app). If you also have users inside <strong>Firebase Console &rarr; Authentication</strong> and want Admin Panel deletions to automatically remove them from Firebase Auth as well, paste your Firebase Service Account JSON below (from Firebase Project Settings &rarr; Service accounts &rarr; Generate new private key).
+        </p>
+        <form method="POST">
+          <textarea name="firebase_sa_json" rows="3" placeholder='Paste Firebase service-account.json here (or leave empty and submit to disconnect)...' style="width:100%; padding:10px; border:1px solid #CBD5E1; border-radius:8px; font-family:monospace; font-size:12px;"></textarea>
+          <div style="margin-top:10px;">
+            <button type="submit" class="btn btn-primary btn-sm">Save Firebase Service Account</button>
+          </div>
+        </form>
+      </div>
     </div>
   </main>
 
