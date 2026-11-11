@@ -9,13 +9,18 @@ require_once __DIR__ . '/../api/config/db.php';
 require_once __DIR__ . '/../api/helpers/schema_migrator.php';
 
 $pdo = Database::getConnection();
-SchemaMigrator::ensureGoogleAuthColumns($pdo);
+SchemaMigrator::ensureSchemaUpToDate($pdo);
 
 // 1. Fetch KPI metrics
 $totalUsers = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
 $verifiedPlayers = $pdo->query("SELECT COUNT(*) FROM players WHERE is_verified = 1")->fetchColumn();
 $totalMatches = $pdo->query("SELECT COUNT(*) FROM matches")->fetchColumn();
 $liveMatchesCount = $pdo->query("SELECT COUNT(*) FROM matches WHERE status = 'live'")->fetchColumn();
+$totalTeams = $pdo->query("SELECT COUNT(*) FROM teams")->fetchColumn();
+$totalTournaments = $pdo->query("SELECT COUNT(*) FROM tournaments")->fetchColumn();
+$totalDrafts = $pdo->query("SELECT COUNT(*) FROM drafts")->fetchColumn();
+$totalRegPlayers = $pdo->query("SELECT COUNT(*) FROM reg_players")->fetchColumn();
+$totalManualStats = $pdo->query("SELECT COUNT(*) FROM manual_stats")->fetchColumn();
 
 // 2. Fetch Live Matches
 $liveMatches = $pdo->query("SELECT * FROM matches WHERE status = 'live' ORDER BY updated_at DESC LIMIT 10")->fetchAll();
@@ -85,6 +90,26 @@ $recentPlayers = $pdo->query("SELECT * FROM players ORDER BY created_at DESC LIM
         <div class="kpi-label">Registered Accounts</div>
         <div class="kpi-val"><?= $totalUsers ?></div>
         <div class="kpi-sub">Active app users & scorers</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Teams & Squads</div>
+        <div class="kpi-val"><?= $totalTeams ?></div>
+        <div class="kpi-sub">Teams synced to MySQL</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Tournaments</div>
+        <div class="kpi-val"><?= $totalTournaments ?></div>
+        <div class="kpi-sub">Leagues & playoff brackets</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Drafts / Pool</div>
+        <div class="kpi-val"><?= $totalDrafts ?> / <?= $totalRegPlayers ?></div>
+        <div class="kpi-sub">Drafts & registered players</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Manual Career Stats</div>
+        <div class="kpi-val"><?= $totalManualStats ?></div>
+        <div class="kpi-sub">Past innings & bowling records</div>
       </div>
     </div>
 

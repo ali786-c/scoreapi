@@ -178,6 +178,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isInstalled) {
 
             $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
 
+            // Run idempotent v3 schema upgrades (reg_players, manual_stats, tombstones, extra columns)
+            require_once __DIR__ . '/api/helpers/schema_migrator.php';
+            SchemaMigrator::ensureSchemaUpToDate($pdo);
+
             // 2. Provision Admin User
             $adminUid = 'usr_admin_' . bin2hex(random_bytes(4));
             $adminCode = '60S-ADMIN1';

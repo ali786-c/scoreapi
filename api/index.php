@@ -98,9 +98,11 @@ try {
         TournamentController::publish($input);
     }
 
-    // ----------------- 100% OFFLINE-FIRST SYNC ROUTE -----------------
+    // ----------------- 100% OFFLINE-FIRST 2-WAY SYNC ROUTES -----------------
     elseif ($route === '/sync/batch' && $method === 'POST') {
         SyncController::batchSync($input);
+    } elseif ($route === '/sync/pull' && $method === 'GET') {
+        SyncController::pullSync();
     }
 
     // ----------------- STATUS HEALTHCHECK -----------------
@@ -108,7 +110,7 @@ try {
         Response::success([
             'service' => '60Score / STUMPS Backend API',
             'status' => 'operational',
-            'version' => '1.0.0',
+            'version' => '1.1.0',
             'time' => date('c')
         ]);
     }
