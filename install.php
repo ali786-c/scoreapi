@@ -57,8 +57,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isInstalled) {
               `user_code` VARCHAR(16) NOT NULL UNIQUE,
               `name` VARCHAR(100) NOT NULL,
               `email` VARCHAR(150) NOT NULL UNIQUE,
-              `password_hash` VARCHAR(255) NOT NULL,
+              `google_id` VARCHAR(128) NULL UNIQUE,
+              `auth_provider` ENUM('google', 'email') NOT NULL DEFAULT 'google',
+              `password_hash` VARCHAR(255) NULL DEFAULT NULL,
               `role` ENUM('player', 'scorer', 'admin') DEFAULT 'player',
+              `profile_completed` TINYINT(1) NOT NULL DEFAULT 0,
               `contact` VARCHAR(50) DEFAULT NULL,
               `city` VARCHAR(100) DEFAULT '',
               `avatar_url` VARCHAR(255) DEFAULT NULL,
@@ -67,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isInstalled) {
               `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
               INDEX `idx_user_email` (`email`),
+              INDEX `idx_user_google` (`google_id`),
               INDEX `idx_user_code` (`user_code`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
@@ -81,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isInstalled) {
               `role` VARCHAR(50) DEFAULT 'All-Rounder',
               `batting_style` VARCHAR(50) DEFAULT 'Right-hand',
               `bowling_style` VARCHAR(50) DEFAULT 'Right-arm medium',
+              `jersey_number` INT NOT NULL DEFAULT 7,
               `city` VARCHAR(100) DEFAULT '',
               `photo_base64` MEDIUMTEXT DEFAULT NULL,
               `career_stats_json` JSON DEFAULT NULL,
@@ -180,8 +185,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isInstalled) {
             $adminToken = bin2hex(random_bytes(32));
 
             $stmtAdmin = $pdo->prepare("INSERT INTO `users` 
-                (`uid`, `user_code`, `name`, `email`, `password_hash`, `role`, `api_token`) 
-                VALUES (?, ?, ?, ?, ?, 'admin', ?)
+                (`uid`, `user_code`, `name`, `email`, `auth_provider`, `password_hash`, `role`, `profile_completed`, `api_token`) 
+                VALUES (?, ?, ?, ?, 'email', ?, 'admin', 1, ?)
                 ON DUPLICATE KEY UPDATE `password_hash` = VALUES(`password_hash`), `name` = VALUES(`name`)");
             $stmtAdmin->execute([$adminUid, $adminCode, $adminName, $adminEmail, $adminPassHash, $adminToken]);
 

@@ -6,7 +6,9 @@ if (empty($_SESSION['admin_logged_in'])) {
 }
 
 require_once __DIR__ . '/../api/config/db.php';
+require_once __DIR__ . '/../api/helpers/schema_migrator.php';
 $pdo = Database::getConnection();
+SchemaMigrator::ensureGoogleAuthColumns($pdo);
 
 // Handle Toggle Player Verification
 if (isset($_POST['toggle_verify_player_id'])) {
@@ -34,14 +36,15 @@ if (isset($_POST['toggle_ban_user_id'])) {
 
 $search = trim($_GET['q'] ?? '');
 if (!empty($search)) {
-    $stmt = $pdo->prepare("SELECT * FROM players 
-        WHERE name LIKE ? OR user_code LIKE ? OR id LIKE ? 
-        ORDER BY created_at DESC LIMIT 50");
+    $stmt = $pdo->prepare("SELECT p.*, u.auth_provider, u.profile_completed FROM players p
+        LEFT JOIN users u ON p.linked_user_id = u.id
+        WHERE p.name LIKE ? OR p.user_code LIKE ? OR p.id LIKE ? OR p.email LIKE ?
+        ORDER BY p.created_at DESC LIMIT 50");
     $term = "%{$search}%";
-    $stmt->execute([$term, $term, $term]);
+    $stmt->execute([$term, $term, $term, $term]);
     $players = $stmt->fetchAll();
 } else {
-    $players = $pdo->query("SELECT * FROM players ORDER BY created_at DESC LIMIT 50")->fetchAll();
+    $players = $pdo->query("SELECT p.*, u.auth_provider, u.profile_completed FROM players p LEFT JOIN users u ON p.linked_user_id = u.id ORDER BY p.created_at DESC LIMIT 50")->fetchAll();
 }
 ?>
 <!DOCTYPE html>
@@ -111,7 +114,15 @@ if (!empty($search)) {
                     <span class="badge badge-unverified">UNVERIFIED</span>
                   <?php endif; ?>
                 </td>
-                <td><?= htmlspecialchars($p['email'] ?: 'Local (Not Linked)') ?></td>
+                <td>
+                  <?= htmlspecialchars($p['email'] ?: 'Local (Not Linked)') ?>
+                  <?php if (($p['auth_provider'] ?? '') === 'google'): ?>
+                    <span style="display:inline-block; background:#E0F2FE; color:#0369A1; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; margin-left:4px;">GOOGLE</span>
+                  <?php endif; ?>
+                  <?php if (isset($p['profile_completed']) && !$p['profile_completed']): ?>
+                    <span style="display:inline-block; background:#FEF3C7; color:#92400E; font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; margin-left:4px;">ONBOARDING PENDING</span>
+                  <?php endif; ?>
+                </td>
                 <td><?= htmlspecialchars($p['role']) ?> <?= !empty($p['city']) ? '• ' . htmlspecialchars($p['city']) : '' ?></td>
                 <td>
                   <form method="POST" style="display: inline;">

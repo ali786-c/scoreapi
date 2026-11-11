@@ -42,7 +42,11 @@ if (!is_array($input)) {
 
 try {
     // ----------------- AUTH ROUTES -----------------
-    if ($route === '/auth/register' && $method === 'POST') {
+    if ($route === '/auth/google' && $method === 'POST') {
+        AuthController::googleLogin($input);
+    } elseif ($route === '/auth/complete-onboarding' && $method === 'POST') {
+        AuthController::completeOnboarding($input);
+    } elseif ($route === '/auth/register' && $method === 'POST') {
         AuthController::register($input);
     } elseif ($route === '/auth/login' && $method === 'POST') {
         AuthController::login($input);

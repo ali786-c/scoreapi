@@ -6,8 +6,10 @@ if (empty($_SESSION['admin_logged_in'])) {
 }
 
 require_once __DIR__ . '/../api/config/db.php';
+require_once __DIR__ . '/../api/helpers/schema_migrator.php';
 
 $pdo = Database::getConnection();
+SchemaMigrator::ensureGoogleAuthColumns($pdo);
 
 // 1. Fetch KPI metrics
 $totalUsers = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();

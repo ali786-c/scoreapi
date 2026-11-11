@@ -12,8 +12,11 @@ CREATE TABLE `users` (
   `user_code` VARCHAR(16) NOT NULL UNIQUE,
   `name` VARCHAR(100) NOT NULL,
   `email` VARCHAR(150) NOT NULL UNIQUE,
-  `password_hash` VARCHAR(255) NOT NULL,
+  `google_id` VARCHAR(128) NULL UNIQUE,
+  `auth_provider` ENUM('google', 'email') NOT NULL DEFAULT 'google',
+  `password_hash` VARCHAR(255) NULL DEFAULT NULL,
   `role` ENUM('player', 'scorer', 'admin') DEFAULT 'player',
+  `profile_completed` TINYINT(1) NOT NULL DEFAULT 0,
   `contact` VARCHAR(50) DEFAULT NULL,
   `city` VARCHAR(100) DEFAULT '',
   `avatar_url` VARCHAR(255) DEFAULT NULL,
@@ -22,6 +25,7 @@ CREATE TABLE `users` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_user_email` (`email`),
+  INDEX `idx_user_google` (`google_id`),
   INDEX `idx_user_code` (`user_code`),
   INDEX `idx_api_token` (`api_token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -38,6 +42,7 @@ CREATE TABLE `players` (
   `role` VARCHAR(50) DEFAULT 'All-Rounder',
   `batting_style` VARCHAR(50) DEFAULT 'Right-hand',
   `bowling_style` VARCHAR(50) DEFAULT 'Right-arm medium',
+  `jersey_number` INT NOT NULL DEFAULT 7,
   `city` VARCHAR(100) DEFAULT '',
   `photo_base64` MEDIUMTEXT DEFAULT NULL,
   `career_stats_json` JSON DEFAULT NULL,
@@ -147,14 +152,16 @@ CREATE TABLE `drafts` (
 
 -- 8. Seed Default Admin User
 -- Email: admin@60score.com | Password: password123 (Change upon first login)
-INSERT INTO `users` (`uid`, `user_code`, `name`, `email`, `password_hash`, `role`)
+INSERT INTO `users` (`uid`, `user_code`, `name`, `email`, `auth_provider`, `password_hash`, `role`, `profile_completed`)
 VALUES (
   'usr_admin_master',
   '60S-ADMIN1',
   'Master Administrator',
   'admin@60score.com',
+  'email',
   '$2y$10$w8/mH9yI9b6m6qX9kH5U2e5WjVf.K/XQ3K8p.pZ8j7QWqLdJ5fE7u', -- bcrypt for 'password123'
-  'admin'
+  'admin',
+  1
 ) ON DUPLICATE KEY UPDATE `id`=`id`;
 
 SET FOREIGN_KEY_CHECKS = 1;
