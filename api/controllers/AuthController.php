@@ -186,11 +186,37 @@ class AuthController {
                 $token = bin2hex(random_bytes(32));
             }
 
-            $newAvatar = !empty($avatarUrl) ? $avatarUrl : ($existingUser['avatar_url'] ?? null);
-            $upd = $pdo->prepare("UPDATE users SET google_id = COALESCE(google_id, ?), auth_provider = 'google', avatar_url = ?, api_token = ? WHERE id = ?");
-            $upd->execute([$googleId, $newAvatar, $token, $existingUser['id']]);
+            $player = self::fetchPlayerForUser($pdo, $existingUser);
+            $wasFirstGoogleAppLogin = empty($existingUser['google_id']) && $player === null;
 
-            // Reload fresh user row
+            $newAvatar = !empty($avatarUrl) ? $avatarUrl : ($existingUser['avatar_url'] ?? null);
+            if ($wasFirstGoogleAppLogin) {
+                $upd = $pdo->prepare("UPDATE users SET google_id = ?, auth_provider = 'google', profile_completed = 0, avatar_url = ?, api_token = ? WHERE id = ?");
+                $upd->execute([$googleId, $newAvatar, $token, $existingUser['id']]);
+            } else {
+                $upd = $pdo->prepare("UPDATE users SET google_id = COALESCE(google_id, ?), auth_provider = 'google', avatar_url = ?, api_token = ? WHERE id = ?");
+                $upd->execute([$googleId, $newAvatar, $token, $existingUser['id']]);
+            }
+
+            // Ensure every authenticated user has a verified player record visible in Admin Dashboard
+            if ($player === null) {
+                $pName = !empty($existingUser['name']) && $existingUser['name'] !== 'Administrator'
+                    ? $existingUser['name']
+                    : $googleName;
+                $stmtP = $pdo->prepare("INSERT INTO players (id, user_code, linked_user_id, name, is_verified, email, role, batting_style, bowling_style, jersey_number, city)
+                    VALUES (?, ?, ?, ?, 1, ?, 'All-Rounder', 'Right-hand bat', 'Right-arm fast-medium', 7, ?)
+                    ON DUPLICATE KEY UPDATE linked_user_id = VALUES(linked_user_id), is_verified = 1, email = VALUES(email)");
+                $stmtP->execute([
+                    $existingUser['uid'],
+                    $existingUser['user_code'],
+                    $existingUser['id'],
+                    $pName,
+                    $existingUser['email'],
+                    $existingUser['city'] ?? '',
+                ]);
+            }
+
+            // Reload fresh user row & player
             $stmt->execute([$googleId, $email]);
             $user = $stmt->fetch();
             $player = self::fetchPlayerForUser($pdo, $user);
@@ -198,7 +224,7 @@ class AuthController {
             Response::success([
                 'user' => self::formatUserPayload($user, $player),
                 'token' => $token,
-                'is_new_user' => false,
+                'is_new_user' => $wasFirstGoogleAppLogin,
                 'profile_completed' => (bool)($user['profile_completed'] ?? true),
             ], 'Google sign-in successful');
         }

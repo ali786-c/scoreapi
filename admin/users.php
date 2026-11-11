@@ -43,8 +43,15 @@ if (!empty($search)) {
     $term = "%{$search}%";
     $stmt->execute([$term, $term, $term, $term]);
     $players = $stmt->fetchAll();
+
+    $stmtU = $pdo->prepare("SELECT * FROM users
+        WHERE name LIKE ? OR user_code LIKE ? OR email LIKE ?
+        ORDER BY created_at DESC LIMIT 50");
+    $stmtU->execute([$term, $term, $term]);
+    $usersList = $stmtU->fetchAll();
 } else {
     $players = $pdo->query("SELECT p.*, u.auth_provider, u.profile_completed FROM players p LEFT JOIN users u ON p.linked_user_id = u.id ORDER BY p.created_at DESC LIMIT 50")->fetchAll();
+    $usersList = $pdo->query("SELECT * FROM users ORDER BY created_at DESC LIMIT 50")->fetchAll();
 }
 ?>
 <!DOCTYPE html>
@@ -132,6 +139,75 @@ if (!empty($search)) {
                       <?= $p['is_verified'] ? 'Revoke Verification' : 'Grant Verified Badge' ?>
                     </button>
                   </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel" style="margin-top: 24px;">
+      <div class="panel-header">
+        <h2 class="panel-title">Registered Accounts (<?= count($usersList) ?> shown)</h2>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Account Name</th>
+            <th>60S Code</th>
+            <th>Email</th>
+            <th>Provider</th>
+            <th>Onboarding</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (empty($usersList)): ?>
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No user accounts found.</td></tr>
+          <?php else: ?>
+            <?php foreach ($usersList as $u): ?>
+              <tr>
+                <td>
+                  <strong><?= htmlspecialchars($u['name']) ?></strong>
+                  <div style="font-size:11px; color:var(--text-muted);"><?= strtoupper(htmlspecialchars($u['role'])) ?></div>
+                </td>
+                <td><code style="background: #F1F5F9; padding: 3px 8px; border-radius: 4px; font-weight: 700; color: #00261B;"><?= htmlspecialchars($u['user_code']) ?></code></td>
+                <td><?= htmlspecialchars($u['email']) ?></td>
+                <td>
+                  <?php if (($u['auth_provider'] ?? '') === 'google'): ?>
+                    <span class="badge badge-verified">GOOGLE</span>
+                  <?php else: ?>
+                    <span class="badge badge-unverified">EMAIL</span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <?php if (!empty($u['profile_completed'])): ?>
+                    <span class="badge badge-verified">✓ COMPLETED</span>
+                  <?php else: ?>
+                    <span class="badge badge-unverified">PENDING</span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <?php if (!empty($u['is_banned'])): ?>
+                    <span class="badge badge-live">BANNED</span>
+                  <?php else: ?>
+                    <span class="badge badge-verified">ACTIVE</span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <?php if ($u['role'] !== 'admin'): ?>
+                    <form method="POST" style="display: inline;">
+                      <input type="hidden" name="toggle_ban_user_id" value="<?= (int)$u['id'] ?>">
+                      <input type="hidden" name="current_ban" value="<?= (int)$u['is_banned'] ?>">
+                      <button type="submit" class="btn <?= $u['is_banned'] ? 'btn-primary' : 'btn-danger' ?> btn-sm">
+                        <?= $u['is_banned'] ? 'Unban User' : 'Ban User' ?>
+                      </button>
+                    </form>
+                  <?php else: ?>
+                    <span style="font-size:11px; color:var(--text-muted);">Master Admin</span>
+                  <?php endif; ?>
                 </td>
               </tr>
             <?php endforeach; ?>
