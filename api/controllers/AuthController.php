@@ -187,7 +187,7 @@ class AuthController {
             }
 
             $player = self::fetchPlayerForUser($pdo, $existingUser);
-            $wasFirstGoogleAppLogin = empty($existingUser['google_id']) && $player === null;
+            $wasFirstGoogleAppLogin = ($player === null);
 
             $newAvatar = !empty($avatarUrl) ? $avatarUrl : ($existingUser['avatar_url'] ?? null);
             if ($wasFirstGoogleAppLogin) {
