@@ -31,3 +31,32 @@ function userCodeForUid(string $uid): string {
 
     return '60S-' . $buf;
 }
+
+function teamCodeForId(string $teamId): string {
+    $fnv = function(string $s, int $seed): int {
+        $h = $seed & 0xFFFFFFFF;
+        $len = strlen($s);
+        for ($i = 0; $i < $len; $i++) {
+            $h ^= ord($s[$i]);
+            // 32-bit integer multiplication with 0x01000193 (16777619)
+            $h = ($h * 16777619) & 0xFFFFFFFF;
+        }
+        return $h;
+    };
+
+    $h1 = $fnv($teamId, 0x811C9DC5);
+    $h2 = $fnv($teamId, 0x9E3779B9);
+    $h = ($h1 ^ (($h2 << 1) & 0xFFFFFFFF)) & 0xFFFFFFFF;
+
+    $space = 2176782336; // 36^6
+    $v = abs($h) % $space;
+
+    $digits = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $buf = '';
+    for ($i = 0; $i < 6; $i++) {
+        $buf .= $digits[$v % 36];
+        $v = intdiv($v, 36);
+    }
+
+    return 'TM-' . $buf;
+}

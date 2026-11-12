@@ -68,7 +68,10 @@ try {
     }
 
     // ----------------- TEAM ROUTES -----------------
-    elseif ($route === '/teams' && $method === 'GET') {
+    elseif ($route === '/teams/search' && $method === 'GET') {
+        $q = $_GET['q'] ?? '';
+        TeamController::search($q);
+    } elseif ($route === '/teams' && $method === 'GET') {
         TeamController::list();
     } elseif (preg_match('#^/teams/([a-zA-Z0-9_\-]+)$#', $route, $m) && $method === 'GET') {
         TeamController::get($m[1]);
