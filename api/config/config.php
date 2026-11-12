@@ -9,11 +9,11 @@ return [
     'allowed_origins' => ['*'], // In production, restrict to your domain if needed
     'google_client_ids' => [
         // Web OAuth Client ID (used as serverClientId on Android & client_id on Web)
-        '848526833051-enfbtj6pq70jpv707ebtb3ubskemcie0.apps.googleusercontent.com',
+        '241986365674-oac3shqmfifnt54bs3nlnktkqvnd8qka.apps.googleusercontent.com',
         // Android Release OAuth Client ID
-        '848526833051-nvrnpk5r6giu0uqsev50mrptise533j1.apps.googleusercontent.com',
+        '241986365674-orkk70eg3ms3e4hh0hpote40t84goeom.apps.googleusercontent.com',
         // Android Debug OAuth Client ID
-        '848526833051-uhh7j9vaed0g1pges3tqu4onlehcift9.apps.googleusercontent.com',
+        '241986365674-eb7nqicqhrgqv1kr8orrg3v8no188ntm.apps.googleusercontent.com',
     ],
     'debug' => true,
 ];
