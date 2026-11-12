@@ -77,7 +77,9 @@ try {
     }
 
     // ----------------- MATCH ROUTES -----------------
-    elseif ($route === '/matches/live' && $method === 'GET') {
+    elseif ($route === '/matches/feed' && $method === 'GET') {
+        MatchController::feed();
+    } elseif ($route === '/matches/live' && $method === 'GET') {
         MatchController::listLive();
     } elseif ($route === '/matches' && $method === 'GET') {
         MatchController::listAll();
